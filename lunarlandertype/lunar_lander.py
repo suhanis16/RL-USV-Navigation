@@ -234,7 +234,6 @@ class LunarLander(gym.Env, EzPickle):
                 -1.5,
                 -5.0,
                 -5.0,
-                -np.pi,
                 -5.0,
                 0.0,
             ]
@@ -245,9 +244,8 @@ class LunarLander(gym.Env, EzPickle):
                 1.5,
                 5.0,
                 5.0,
-                np.pi,
                 5.0,
-                np.pi,
+                2*np.pi,
             ]
         ).astype(np.float32)
 
