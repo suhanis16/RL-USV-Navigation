@@ -2,7 +2,10 @@ import warnings
 from typing import TYPE_CHECKING, Optional
 import pickle
 import numpy as np
-from DQNAgent import DQNAgent, DQN, ReplayBuffer
+from DQN import DQNAgent, DQN, ReplayBuffer
+from DDQN import DDQNAgent
+from DuelingDQN import DuelingDQNAgent
+from D3QN import D3QNAgent
 import gym
 from gym import error, spaces
 from gym.error import DependencyNotInstalled
@@ -277,28 +280,20 @@ class LunarLander(gym.Env, EzPickle):
             return True 
         return False
 
-    def _goal_pos_reached(self):
-        if (int(self.lander.position[0]), int(self.lander.position[1])) == self.end_pos:
-            return True
-        return False
+    # def _goal_pos_reached(self):
+    #     if (int(self.lander.position[0]), int(self.lander.position[1])) == self.end_pos:
+    #         print("Goal reached!")
+    #         return True
+    #     return False
 
-    # def _generate_random_start_and_end_pos(self, grid_size=(20, 13), boundary_distance=3):
-    #     # Randomly select start position near the boundaries
-    #     start_pos_x = np.random.choice([0, grid_size[0]-1])
-    #     start_pos_y = np.random.randint(boundary_distance, grid_size[1]-boundary_distance)
-    #     start_pos = (start_pos_x, start_pos_y)
-        
-    #     # Select end position on the opposite boundary
-    #     if start_pos_x == 0:
-    #         end_pos_x = grid_size[0] - 1
-    #     else:
-    #         end_pos_x = 0
-    #     end_pos_y = np.random.randint(boundary_distance, grid_size[1]-boundary_distance)
-    #     end_pos = (end_pos_x, end_pos_y)
-        
-    #     self.start_pos = (int(start_pos[0]), int(start_pos[1]))
-    #     self.end_pos = (int(end_pos[0]), int(end_pos[1]))
-    #     print(f"Start Position: {self.start_pos}, End Position: {self.end_pos}")
+    def _goal_pos_reached(self):
+       # Iterate over the fixtures of the lander
+        for fixture in self.lander.fixtures:
+            # Check if any part of the fixture is within a small vicinity of the end position
+            if (fixture.TestPoint(self.end_pos)):
+                print("Goal reached!")
+                return True
+        return False
 
     def _generate_random_start_and_end_pos(self, grid_size=(20, 13), boundary_distance=3):
         # Randomly select start position near the boundaries
@@ -308,9 +303,9 @@ class LunarLander(gym.Env, EzPickle):
         
         # Determine initial angle of the lander based on the start position
         if start_pos_x == 0:
-            init_angle = np.random.uniform(-np.pi/2, np.pi/2)
+            init_angle = np.random.uniform(-np.pi, 0)
         else:
-            init_angle = np.random.uniform(np.pi/2, 3*np.pi/2)
+            init_angle = np.random.uniform(0, np.pi)
         
         # Select end position on the opposite boundary
         if start_pos_x == 0:
@@ -323,7 +318,6 @@ class LunarLander(gym.Env, EzPickle):
         self.start_pos = (int(start_pos[0]), int(start_pos[1]))
         self.end_pos = (int(end_pos[0]), int(end_pos[1]))
         self.init_angle = init_angle
-        print(f"Start Position: {self.start_pos}, End Position: {self.end_pos}, Initial Angle: {self.init_angle}")
 
 
     def reset(
@@ -355,14 +349,14 @@ class LunarLander(gym.Env, EzPickle):
                 shape=polygonShape(
                     vertices=[(x / SCALE, y / SCALE) for x, y in LANDER_POLY]
                 ),
-                density=5.0,
+                density=100.0,
                 friction=0.1,
                 categoryBits=0x0010,
                 maskBits=0x0000,  # do not collide with any object
                 restitution=0.0,
             ),  # 0.99 bouncy
         )
-        self.lander.color1 = (128, 102, 230)
+        self.lander.color1 = (255, 255, 0)
         self.lander.color2 = (77, 77, 128)
         # self.lander.ApplyForceToCenter(
         #     (
@@ -543,6 +537,9 @@ class LunarLander(gym.Env, EzPickle):
             reward = shaping - self.prev_shaping
         self.prev_shaping = shaping
 
+        # calculate fuel spent
+        fuel = m_power + s_power
+
         reward -= (
             m_power * 0.30
         )  # less fuel spent is better, about -30 for heuristic landing
@@ -557,11 +554,11 @@ class LunarLander(gym.Env, EzPickle):
             reward = +100
         if not self.lander.awake:
             terminated = True
-            reward = +100
+            reward = -100
 
         if self.render_mode == "human":
             self.render()
-        return np.array(state, dtype=np.float32), reward, terminated, False, {}
+        return np.array(state, dtype=np.float32), reward, terminated, False, {'fuel': fuel}
 
     def render(self):
         if self.render_mode is None:
@@ -588,7 +585,7 @@ class LunarLander(gym.Env, EzPickle):
         self.surf = pygame.Surface((VIEWPORT_W, VIEWPORT_H))
 
         pygame.transform.scale(self.surf, (SCALE, SCALE))
-        pygame.draw.rect(self.surf, (255, 255, 255), self.surf.get_rect())
+        pygame.draw.rect(self.surf, (79, 66, 181), self.surf.get_rect())
 
         # Draw start and end markers
         pygame.draw.circle(self.surf, (255, 0, 0), (self.start_pos[0]*SCALE, self.start_pos[1]*SCALE), 10)
@@ -746,12 +743,14 @@ class LunarLanderContinuous:
 def play_DQN_episode(env, agent):
     score = 0
     state, _ = env.reset(seed=42)
+    fuel = 0
     
     while True:
         # eps=0 for predictions
         action = agent.act(state, 0)
-        state, reward, terminated, truncated, _ = env.step(action) 
+        state, reward, terminated, truncated, info = env.step(action) 
         done = terminated or truncated
+        fuel += info['fuel']
 
         score += reward
         
@@ -761,32 +760,37 @@ def play_DQN_episode(env, agent):
         if done:
             break 
 
-    return score
+    return score, fuel
 
 if __name__ == '__main__':
     env = LunarLander(render_mode='human', enable_wind=False)
-    for episode in range(100):
-        ep_reward = 0
-        observation = env.reset()
-        done = False
-        ctrl = 0
-        while not done:
-            action = env.action_space.sample()  # Replace with your agent's action
+    # for episode in range(100):
+    #     ep_reward = 0
+    #     observation = env.reset()
+    #     done = False
+    #     ctrl = 0
+    #     while not done:
+    #         action = env.action_space.sample()  # Replace with your agent's action
            
-            observation, reward, done, terminated, info = env.step(action)
-            ep_reward += reward
+    #         observation, reward, done, terminated, info = env.step(action)
+    #         ep_reward += reward
 
-            # Your training logic goes here
+    #         # Your training logic goes here
 
-            env.render()
-            ctrl += 1
+    #         env.render()
+    #         ctrl += 1
 
-        print(f"Episode: {episode + 1}, Reward: {ep_reward}")
+    #     print(f"Episode: {episode + 1}, Reward: {ep_reward}")
 
-    env.close()
+    # env.close()
 
-    # with open('agent.pkl', 'rb') as f:
-    #     agent = pickle.load(f)
-    # for _ in range(10):
-    #     score = play_DQN_episode(env, agent)
-    #     print(f"Score: {score}")
+    with open('agent_DDQN.pkl', 'rb') as f:
+        agent = pickle.load(f)
+    total_score = 0
+    total_fuel = 0
+    for _ in range(10):
+        score, fuel = play_DQN_episode(env, agent)
+        total_score += score
+        total_fuel += fuel
+        print(f"Score: {score} fuel: {fuel}")
+    print(f"\nAverage score: {total_score/10} Average fuel: {total_fuel/10}")
