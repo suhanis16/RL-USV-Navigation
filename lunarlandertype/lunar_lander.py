@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 from DQN import DQNAgent, DQN, ReplayBuffer
 from DDQN import DDQNAgent
-from DuelingDQN import DuelingDQN, DuelingDQNAgent
+from DuelingDQN import DuelingDQNAgent
 from D3QN import D3QNAgent
 import gym
 from gym import error, spaces
@@ -234,6 +234,7 @@ class LunarLander(gym.Env, EzPickle):
                 -1.5,
                 -5.0,
                 -5.0,
+                -np.pi,
                 -5.0,
                 0.0,
             ]
@@ -244,8 +245,9 @@ class LunarLander(gym.Env, EzPickle):
                 1.5,
                 5.0,
                 5.0,
+                np.pi,
                 5.0,
-                2*np.pi,
+                np.pi,
             ]
         ).astype(np.float32)
 
@@ -277,6 +279,12 @@ class LunarLander(gym.Env, EzPickle):
         if 0 < self.lander.position[0] < 20 and 0 < self.lander.position[1] < 13:
             return True 
         return False
+
+    # def _goal_pos_reached(self):
+    #     if (int(self.lander.position[0]), int(self.lander.position[1])) == self.end_pos:
+    #         print("Goal reached!")
+    #         return True
+    #     return False
 
     def _goal_pos_reached(self):
        # Iterate over the fixtures of the lander
@@ -511,17 +519,17 @@ class LunarLander(gym.Env, EzPickle):
             (pos.y - self.end_pos[1]),
             vel.x * (VIEWPORT_W / SCALE / 2) / FPS,
             vel.y * (VIEWPORT_H / SCALE / 2) / FPS,
-            # self.lander.angle,
+            self.lander.angle,
             20.0 * self.lander.angularVelocity / FPS,
             self._angle_with_goal(pos),
         ]
-        assert len(state) == 6
+        assert len(state) == 7
 
         reward = 0
         shaping = (
             -100 * np.sqrt(state[0] * state[0] + state[1] * state[1])
             - 100 * np.sqrt(state[2] * state[2] + state[3] * state[3])
-            - 100 * abs(state[5])
+            - 100 * abs(state[4])
         )  # And ten points for legs contact, the idea is if you
         # lose contact again after landing, you get negative reward
         if self.prev_shaping is not None:
@@ -535,9 +543,6 @@ class LunarLander(gym.Env, EzPickle):
             m_power * 0.30
         )  # less fuel spent is better, about -30 for heuristic landing
         reward -= s_power * 0.03
-
-        # negative reward for step
-        reward -= 1
 
         terminated = False
         if not self._is_within_bounds():
@@ -755,36 +760,3 @@ def play_DQN_episode(env, agent):
             break 
 
     return score, fuel
-
-if __name__ == '__main__':
-    env = LunarLander(render_mode='human', enable_wind=False)
-    for episode in range(100):
-        ep_reward = 0
-        observation = env.reset()
-        done = False
-        ctrl = 0
-        while not done:
-            action = env.action_space.sample()  # Replace with your agent's action
-           
-            observation, reward, done, terminated, info = env.step(action)
-            ep_reward += reward
-
-            # Your training logic goes here
-
-            env.render()
-            ctrl += 1
-
-        print(f"Episode: {episode + 1}, Reward: {ep_reward}")
-
-    env.close()
-
-    # with open('agent.pkl', 'rb') as f:
-    #     agent = pickle.load(f)
-    # total_score = 0
-    # total_fuel = 0
-    # for _ in range(10):
-    #     score, fuel = play_DQN_episode(env, agent)
-    #     total_score += score
-    #     total_fuel += fuel
-    #     print(f"Score: {score} fuel: {fuel}")
-    # print(f"\nAverage score: {total_score/10} Average fuel: {total_fuel/10}")
