@@ -280,12 +280,6 @@ class LunarLander(gym.Env, EzPickle):
             return True 
         return False
 
-    # def _goal_pos_reached(self):
-    #     if (int(self.lander.position[0]), int(self.lander.position[1])) == self.end_pos:
-    #         print("Goal reached!")
-    #         return True
-    #     return False
-
     def _goal_pos_reached(self):
        # Iterate over the fixtures of the lander
         for fixture in self.lander.fixtures:
@@ -529,7 +523,7 @@ class LunarLander(gym.Env, EzPickle):
         shaping = (
             -100 * np.sqrt(state[0] * state[0] + state[1] * state[1])
             - 100 * np.sqrt(state[2] * state[2] + state[3] * state[3])
-            - 100 * abs(state[4])
+            - 100 * abs(state[6])
         )  # And ten points for legs contact, the idea is if you
         # lose contact again after landing, you get negative reward
         if self.prev_shaping is not None:
@@ -550,7 +544,7 @@ class LunarLander(gym.Env, EzPickle):
             reward = -100
         if self._goal_pos_reached():
             terminated = True
-            reward = +100
+            reward = +1000
         if not self.lander.awake:
             terminated = True
             reward = -100
@@ -736,9 +730,6 @@ class LunarLanderContinuous:
         )
 
 
-# if __name__ == "__main__":
-#     demo_heuristic_lander(LunarLander(render_mode = 'human', enable_wind=False), render=True)
-
 def play_DQN_episode(env, agent):
     score = 0
     state, _ = env.reset(seed=42)
@@ -760,3 +751,16 @@ def play_DQN_episode(env, agent):
             break 
 
     return score, fuel
+
+if __name__ == "__main__":
+    env = LunarLander(render_mode='human')
+    with open('agent_density30.pkl', 'rb') as f:
+        agent = pickle.load(f)
+    total_score = 0
+    total_fuel = 0
+    for _ in range(10):
+        score, fuel = play_DQN_episode(env, agent)
+        total_score += score
+        total_fuel += fuel
+        print(f"Score: {score} fuel: {fuel}")
+    print(f"\nAverage score: {total_score/10} Average fuel: {total_fuel/10}")
