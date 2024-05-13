@@ -428,12 +428,15 @@ class ThrusterNaav(gym.Env, EzPickle):
         )  # less fuel spent is better, about -30 for heuristic landing
         reward -= s_power * 0.03
 
+        goal_reached = False
+
         terminated = False
         if not self._is_within_bounds():
             terminated = True
             reward = -100
         if self._goal_pos_reached():
             terminated = True
+            goal_reached = True
             reward += 1000
         if not self.lander.awake:
             terminated = True
@@ -442,7 +445,7 @@ class ThrusterNaav(gym.Env, EzPickle):
         if self.render_mode == "human":
             self.render()
 
-        return np.array(state, dtype=np.float32), reward, terminated, False, {'fuel': fuel}
+        return np.array(state, dtype=np.float32), reward, terminated, False, {'fuel': fuel, 'goal_reached': goal_reached}
 
     def render(self):
         if self.render_mode is None:
@@ -539,8 +542,8 @@ class ThrusterNaav(gym.Env, EzPickle):
 
 def play_DQN_episode(env, agent):
     score = 0
-    state, _ = env.reset(seed=42)
     fuel = 0
+    state, _ = env.reset(seed=42)
     
     while True:
         # eps=0 for predictions
@@ -557,7 +560,7 @@ def play_DQN_episode(env, agent):
         if done:
             break 
 
-    return score, fuel
+    return score, fuel, info['goal_reached']
 
 if __name__ == "__main__":
     env = ThrusterNaav(render_mode=None)
@@ -566,9 +569,11 @@ if __name__ == "__main__":
     iterations = 100
     total_score = 0
     total_fuel = 0
+    times_goal_reached = 0
     for _ in range(iterations):
-        score, fuel = play_DQN_episode(env, agent)
+        score, fuel, goal_reached = play_DQN_episode(env, agent)
         total_score += score
         total_fuel += fuel
-        print(f"Score: {score} fuel: {fuel}")
-    print(f"\nAverage score: {total_score/iterations} Average fuel: {total_fuel/iterations}")
+        times_goal_reached += 1 if goal_reached else 0
+        # print(f"Score: {score} fuel: {fuel}")
+    print(f"\nAverage score: {total_score/iterations}\nAverage fuel: {total_fuel/iterations}\nTimes goal reached: {times_goal_reached/iterations*100}%")
