@@ -544,13 +544,14 @@ class LunarLander(gym.Env, EzPickle):
             reward = -100
         if self._goal_pos_reached():
             terminated = True
-            reward = +1000
+            reward += 1000
         if not self.lander.awake:
             terminated = True
             reward = -100
 
         if self.render_mode == "human":
             self.render()
+
         return np.array(state, dtype=np.float32), reward, terminated, False, {'fuel': fuel}
 
     def render(self):
@@ -754,13 +755,14 @@ def play_DQN_episode(env, agent):
 
 if __name__ == "__main__":
     env = LunarLander(render_mode='human')
-    with open('agent_density30.pkl', 'rb') as f:
+    with open('agent_DQN_wf.pkl', 'rb') as f:
         agent = pickle.load(f)
+    iterations = 10
     total_score = 0
     total_fuel = 0
-    for _ in range(10):
+    for _ in range(iterations):
         score, fuel = play_DQN_episode(env, agent)
         total_score += score
         total_fuel += fuel
         print(f"Score: {score} fuel: {fuel}")
-    print(f"\nAverage score: {total_score/10} Average fuel: {total_fuel/10}")
+    print(f"\nAverage score: {total_score/iterations} Average fuel: {total_fuel/iterations}")
