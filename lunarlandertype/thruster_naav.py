@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 from DQN import DQNAgent, DQN, ReplayBuffer
 from DDQN import DDQNAgent
-from DuelingDQN import DuelingDQNAgent
+from DuelingDQN import DuelingDQN, DuelingDQNAgent
 from D3QN import D3QNAgent
 import gym
 from gym import error, spaces
@@ -174,7 +174,7 @@ class ThrusterNaav(gym.Env, EzPickle):
        # Iterate over the fixtures of the lander
         for fixture in self.lander.fixtures:
             # Check if any part of the fixture is within a small vicinity of the end position
-            if (fixture.TestPoint(self.end_pos)):
+            if (fixture.TestPoint((self.end_pos))):
                 return True
         return False
 
@@ -421,7 +421,7 @@ class ThrusterNaav(gym.Env, EzPickle):
         self.prev_shaping = shaping
 
         # calculate fuel spent
-        fuel = m_power + s_power
+        fuel = m_power * MAIN_ENGINE_POWER + s_power * SIDE_ENGINE_POWER
 
         reward -= (
             m_power * 0.30
@@ -554,7 +554,7 @@ def play_DQN_episode(env, agent):
 
         score += reward
         
-        # env.render()
+        env.render()
 
         # End the episode if done
         if done:
@@ -563,10 +563,10 @@ def play_DQN_episode(env, agent):
     return score, fuel, info['goal_reached']
 
 if __name__ == "__main__":
-    env = ThrusterNaav(render_mode=None)
-    with open('models/wo_optimization/agent_DDQN.pkl', 'rb') as f:
+    env = ThrusterNaav(render_mode='human')
+    with open('models/w_optimization/agent_DQN.pkl', 'rb') as f:
         agent = pickle.load(f)
-    iterations = 100
+    iterations = 200
     total_score = 0
     total_fuel = 0
     times_goal_reached = 0
