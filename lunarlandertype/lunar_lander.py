@@ -51,117 +51,7 @@ VIEWPORT_W = 600
 VIEWPORT_H = 400
 
 
-class LunarLander(gym.Env, EzPickle):
-    """
-    ### Description
-    This environment is a classic rocket trajectory optimization problem.
-    According to Pontryagin's maximum principle, it is optimal to fire the
-    engine at full throttle or turn it off. This is the reason why this
-    environment has discrete actions: engine on or off.
-
-    There are two environment versions: discrete or continuous.
-    The landing pad is always at coordinates (0,0). The coordinates are the
-    first two numbers in the state vector.
-    Landing outside of the landing pad is possible. Fuel is infinite, so an agent
-    can learn to fly and then land on its first attempt.
-
-    To see a heuristic landing, run:
-    ```
-    python gym/envs/box2d/lunar_lander.py
-    ```
-    <!-- To play yourself, run: -->
-    <!-- python examples/agents/keyboard_agent.py LunarLander-v2 -->
-
-    ### Action Space
-    There are four discrete actions available: do nothing, fire left
-    orientation engine, fire main engine, fire right orientation engine.
-
-    ### Observation Space
-    The state is an 8-dimensional vector: the coordinates of the lander in `x` & `y`, its linear
-    velocities in `x` & `y`, its angle, its angular velocity, and two booleans
-    that represent whether each leg is in contact with the ground or not.
-
-    ### Rewards
-    After every step a reward is granted. The total reward of an episode is the
-    sum of the rewards for all the steps within that episode.
-
-    For each step, the reward:
-    - is increased/decreased the closer/further the lander is to the landing pad.
-    - is increased/decreased the slower/faster the lander is moving.
-    - is decreased the more the lander is tilted (angle not horizontal).
-    - is increased by 10 points for each leg that is in contact with the ground.
-    - is decreased by 0.03 points each frame a side engine is firing.
-    - is decreased by 0.3 points each frame the main engine is firing.
-
-    The episode receive an additional reward of -100 or +100 points for crashing or landing safely respectively.
-
-    An episode is considered a solution if it scores at least 200 points.
-
-    ### Starting State
-    The lander starts at the top center of the viewport with a random initial
-    force applied to its center of mass.
-
-    ### Episode Termination
-    The episode finishes if:
-    1) the lander crashes (the lander body gets in contact with the moon);
-    2) the lander gets outside of the viewport (`x` coordinate is greater than 1);
-    3) the lander is not awake. From the [Box2D docs](https://box2d.org/documentation/md__d_1__git_hub_box2d_docs_dynamics.html#autotoc_md61),
-        a body which is not awake is a body which doesn't move and doesn't
-        collide with any other body:
-    > When Box2D determines that a body (or group of bodies) has come to rest,
-    > the body enters a sleep state which has very little CPU overhead. If a
-    > body is awake and collides with a sleeping body, then the sleeping body
-    > wakes up. Bodies will also wake up if a joint or contact attached to
-    > them is destroyed.
-
-    ### Arguments
-    To use to the _continuous_ environment, you need to specify the
-    `continuous=True` argument like below:
-    ```python
-    import gym
-    env = gym.make(
-        "LunarLander-v2",
-        continuous: bool = False,
-        gravity: float = -10.0,
-        enable_wind: bool = False,
-        wind_power: float = 15.0,
-        turbulence_power: float = 1.5,
-    )
-    ```
-    If `continuous=True` is passed, continuous actions (corresponding to the throttle of the engines) will be used and the
-    action space will be `Box(-1, +1, (2,), dtype=np.float32)`.
-    The first coordinate of an action determines the throttle of the main engine, while the second
-    coordinate specifies the throttle of the lateral boosters.
-    Given an action `np.array([main, lateral])`, the main engine will be turned off completely if
-    `main < 0` and the throttle scales affinely from 50% to 100% for `0 <= main <= 1` (in particular, the
-    main engine doesn't work  with less than 50% power).
-    Similarly, if `-0.5 < lateral < 0.5`, the lateral boosters will not fire at all. If `lateral < -0.5`, the left
-    booster will fire, and if `lateral > 0.5`, the right booster will fire. Again, the throttle scales affinely
-    from 50% to 100% between -1 and -0.5 (and 0.5 and 1, respectively).
-
-    `gravity` dictates the gravitational constant, this is bounded to be within 0 and -12.
-
-    If `enable_wind=True` is passed, there will be wind effects applied to the lander.
-    The wind is generated using the function `tanh(sin(2 k (t+C)) + sin(pi k (t+C)))`.
-    `k` is set to 0.01.
-    `C` is sampled randomly between -9999 and 9999.
-
-    `wind_power` dictates the maximum magnitude of linear wind applied to the craft. The recommended value for `wind_power` is between 0.0 and 20.0.
-    `turbulence_power` dictates the maximum magnitude of rotational wind applied to the craft. The recommended value for `turbulence_power` is between 0.0 and 2.0.
-
-    ### Version History
-    - v2: Count energy spent and in v0.24, added turbulance with wind power and turbulence_power parameters
-    - v1: Legs contact with ground added in state vector; contact with ground
-        give +10 reward points, and -10 if then lose contact; reward
-        renormalized to 200; harder initial random push.
-    - v0: Initial version
-
-    <!-- ### References -->
-
-    ### Credits
-    Created by Oleg Klimov
-    """
-
+class ThrusterNaav(gym.Env, EzPickle):
     metadata = {
         "render_modes": ["human", "rgb_array"],
         "render_fps": FPS,
@@ -647,90 +537,6 @@ class LunarLander(gym.Env, EzPickle):
             self.isopen = False
 
 
-def heuristic(env, s):
-    """
-    The heuristic for
-    1. Testing
-    2. Demonstration rollout.
-
-    Args:
-        env: The environment
-        s (list): The state. Attributes:
-            s[0] is the horizontal coordinate
-            s[1] is the vertical coordinate
-            s[2] is the horizontal speed
-            s[3] is the vertical speed
-            s[4] is the angle
-            s[5] is the angular speed
-            s[6] 1 if first leg has contact, else 0
-            s[7] 1 if second leg has contact, else 0
-
-    Returns:
-         a: The heuristic to be fed into the step function defined above to determine the next step and reward.
-    """
-
-    angle_targ = s[0] * 0.5 + s[2] * 1.0  # angle should point towards center
-    if angle_targ > 0.4:
-        angle_targ = 0.4  # more than 0.4 radians (22 degrees) is bad
-    if angle_targ < -0.4:
-        angle_targ = -0.4
-    hover_targ = 0.55 * np.abs(
-        s[0]
-    )  # target y should be proportional to horizontal offset
-
-    angle_todo = (angle_targ - s[4]) * 0.5 - (s[5]) * 1.0
-    hover_todo = (hover_targ - s[1]) * 0.5 - (s[3]) * 0.5
-
-    if env.continuous:
-        a = np.array([hover_todo * 20 - 1, -angle_todo * 20])
-        a = np.clip(a, -1, +1)
-    else:
-        a = 0
-        if hover_todo > np.abs(angle_todo) and hover_todo > 0.05:
-            a = 2
-        elif angle_todo < -0.05:
-            a = 3
-        elif angle_todo > +0.05:
-            a = 1
-    return a
-
-
-def demo_heuristic_lander(env, seed=None, render=False):
-    total_reward = 0
-    steps = 0
-    s, info = env.reset(seed=seed)
-    while True:
-        # a = heuristic(env, s)
-        a = env.action_space.sample()
-        s, r, terminated, truncated, info = step_api_compatibility(env.step(a), True)
-        total_reward += r
-
-        if render:
-            still_open = env.render()
-            if still_open is False:
-                break
-
-        if steps % 20 == 0 or terminated or truncated:
-            print("observations:", " ".join([f"{x:+0.2f}" for x in s]))
-            print(f"step {steps} reward {r:+0.2f} total_reward {total_reward:+0.2f}")
-        steps += 1
-        if terminated or truncated:
-            break
-    if render:
-        env.close()
-    return total_reward
-
-
-class LunarLanderContinuous:
-    def __init__(self):
-        raise error.Error(
-            "Error initializing LunarLanderContinuous Environment.\n"
-            "Currently, we do not support initializing this mode of environment by calling the class directly.\n"
-            "To use this environment, instead create it by specifying the continuous keyword in gym.make, i.e.\n"
-            'gym.make("LunarLander-v2", continuous=True)'
-        )
-
-
 def play_DQN_episode(env, agent):
     score = 0
     state, _ = env.reset(seed=42)
@@ -745,7 +551,7 @@ def play_DQN_episode(env, agent):
 
         score += reward
         
-        env.render()
+        # env.render()
 
         # End the episode if done
         if done:
@@ -754,10 +560,10 @@ def play_DQN_episode(env, agent):
     return score, fuel
 
 if __name__ == "__main__":
-    env = LunarLander(render_mode='human')
-    with open('agent_DQN_wf.pkl', 'rb') as f:
+    env = ThrusterNaav(render_mode=None)
+    with open('models/wo_optimization/agent_DDQN.pkl', 'rb') as f:
         agent = pickle.load(f)
-    iterations = 10
+    iterations = 100
     total_score = 0
     total_fuel = 0
     for _ in range(iterations):
