@@ -280,18 +280,11 @@ class LunarLander(gym.Env, EzPickle):
             return True 
         return False
 
-    # def _goal_pos_reached(self):
-    #     if (int(self.lander.position[0]), int(self.lander.position[1])) == self.end_pos:
-    #         print("Goal reached!")
-    #         return True
-    #     return False
-
     def _goal_pos_reached(self):
        # Iterate over the fixtures of the lander
         for fixture in self.lander.fixtures:
             # Check if any part of the fixture is within a small vicinity of the end position
             if (fixture.TestPoint(self.end_pos)):
-                print("Goal reached!")
                 return True
         return False
 
@@ -349,7 +342,7 @@ class LunarLander(gym.Env, EzPickle):
                 shape=polygonShape(
                     vertices=[(x / SCALE, y / SCALE) for x, y in LANDER_POLY]
                 ),
-                density=100.0,
+                density=5.0,
                 friction=0.1,
                 categoryBits=0x0010,
                 maskBits=0x0000,  # do not collide with any object
