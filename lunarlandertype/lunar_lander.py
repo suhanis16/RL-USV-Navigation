@@ -564,7 +564,7 @@ def play_DQN_episode(env, agent):
 
 if __name__ == "__main__":
     env = ThrusterNaav(render_mode=None)
-    with open('models/wo_optimization/agent_DDQN.pkl', 'rb') as f:
+    with open('models/wo_optimization/agent_DQN.pkl', 'rb') as f:
         agent = pickle.load(f)
     iterations = 100
     total_score = 0
